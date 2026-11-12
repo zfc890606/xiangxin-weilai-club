@@ -9,6 +9,7 @@ const {
 } = require("obsidian");
 
 const VIEW_TYPE = "zfc-workbench-view";
+const UNDO_BTN_CLS = "zfc-undo-btn";
 
 const MODULES = [
 	{
@@ -827,7 +828,24 @@ class ZfcWorkbenchPlugin extends Plugin {
 			if (this.settings.openOnStartup) {
 				this.activateView();
 			}
+			this.decorateUndoButtons();
 		});
+
+		this.registerEvent(
+			this.app.workspace.on("layout-change", () =>
+				this.decorateUndoButtons()
+			)
+		);
+		this.registerEvent(
+			this.app.workspace.on("active-leaf-change", () =>
+				this.decorateUndoButtons()
+			)
+		);
+		this.registerEvent(
+			this.app.workspace.on("file-open", () =>
+				this.decorateUndoButtons()
+			)
+		);
 
 		this.registerEvent(
 			this.app.workspace.on("layout-change", () => {
@@ -850,6 +868,79 @@ class ZfcWorkbenchPlugin extends Plugin {
 		);
 	}
 
+	decorateUndoButtons() {
+		for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+			this.decorateUndoButton(leaf);
+		}
+	}
+
+	decorateUndoButton(leaf) {
+		const view = leaf && leaf.view;
+		if (
+			!view ||
+			typeof view.getViewType !== "function" ||
+			view.getViewType() !== "markdown" ||
+			!view.containerEl
+		) {
+			return;
+		}
+
+		const header = view.containerEl.querySelector(".view-header");
+		if (!header || header.querySelector("." + UNDO_BTN_CLS)) {
+			return;
+		}
+
+		const button = document.createElement("button");
+		button.className = UNDO_BTN_CLS;
+		button.type = "button";
+		button.textContent = "↶ 撤销";
+		button.setAttribute("aria-label", "撤销这篇笔记的上一步修改");
+		button.addEventListener("mousedown", (event) =>
+			event.preventDefault()
+		);
+		button.addEventListener("click", (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+
+			const editor = view.editor;
+			if (!editor || typeof editor.undo !== "function") {
+				this.app.workspace.setActiveLeaf(leaf, { focus: true });
+				this.app.commands.executeCommandById("file-recovery:open");
+				return;
+			}
+
+			let before = "";
+			try {
+				before = editor.getValue();
+			} catch (error) {
+				before = "";
+			}
+
+			try {
+				editor.undo();
+			} catch (error) {
+				// 撤销不可用时继续走快照回退
+			}
+
+			let after = before;
+			try {
+				after = editor.getValue();
+			} catch (error) {
+				after = before;
+			}
+
+			if (before === after) {
+				// 编辑器里没有可撤销的操作（例如文件被外部改写）→ 打开这篇笔记的历史快照
+				this.app.workspace.setActiveLeaf(leaf, { focus: true });
+				this.app.commands.executeCommandById("file-recovery:open");
+			}
+		});
+
+		const host =
+			header.querySelector(".view-header-right") || header;
+		host.insertBefore(button, host.firstChild);
+	}
+
 	async activateView() {
 		const { workspace } = this.app;
 		let leaf = workspace.getLeavesOfType(VIEW_TYPE)[0];
@@ -858,6 +949,12 @@ class ZfcWorkbenchPlugin extends Plugin {
 			await leaf.setViewState({ type: VIEW_TYPE, active: true });
 		}
 		workspace.revealLeaf(leaf);
+	}
+
+	onunload() {
+		document
+			.querySelectorAll("." + UNDO_BTN_CLS)
+			.forEach((el) => el.remove());
 	}
 
 	async openClaudian(prompt) {

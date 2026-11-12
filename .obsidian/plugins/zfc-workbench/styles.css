@@ -277,6 +277,30 @@
 	transform: translateX(3px);
 }
 
+/* ---------- 笔记面板撤销按钮 ---------- */
+.view-header .zfc-undo-btn {
+	align-self: center;
+	margin: 0 6px 0 4px;
+	padding: 3px 9px;
+	font-size: .78em;
+	line-height: 1.3;
+	font-weight: 600;
+	color: var(--text-muted);
+	background: var(--background-modifier-hover);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 7px;
+	box-shadow: none;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+
+.view-header .zfc-undo-btn:hover {
+	color: var(--text-normal);
+	border-color: var(--interactive-accent);
+	background: var(--background-modifier-active-hover);
+}
+
 .zfc-grid {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
